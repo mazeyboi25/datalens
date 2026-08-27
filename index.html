@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f4f7fb" />
+  <meta name="description" content="DataLens turns CSV files into clear summaries, charts, cleaning tools, and export-ready datasets." />
+
+  <title>DataLens — CSV Data Explorer</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="icon" href="assets/datalens-mark.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js" defer></script>
+  <script src="script.js" defer></script>
+</head>
+
+<body>
+  <noscript class="noscript">
+    DataLens needs JavaScript enabled to analyze CSV files.
+  </noscript>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#workspace" aria-label="DataLens home">
+        <img src="assets/datalens-mark.svg" alt="" />
+        <span>
+          <strong>DataLens</strong>
+          <small>CSV Explorer</small>
+        </span>
+      </a>
+
+      <div class="topbar__center">
+        <span class="workspace-label">Workspace</span>
+        <strong id="header-file-name">New analysis</strong>
+      </div>
+
+      <div class="topbar__actions">
+        <button class="ghost-button" id="new-analysis-button" type="button">
+          New
+        </button>
+        <button class="primary-button primary-button--compact" id="header-export-button" type="button" disabled>
+          Export
+        </button>
+      </div>
+    </header>
+
+    <aside class="sidebar" aria-label="DataLens sections">
+      <div class="sidebar__section">
+        <span class="sidebar__eyebrow">Analysis</span>
+
+        <nav class="sidebar__nav">
+          <button class="nav-item is-active" type="button" data-view="overview">
+            <span class="nav-item__icon">01</span>
+            <span>Overview</span>
+          </button>
+
+          <button class="nav-item" type="button" data-view="data">
+            <span class="nav-item__icon">02</span>
+            <span>Data</span>
+          </button>
+
+          <button class="nav-item" type="button" data-view="columns">
+            <span class="nav-item__icon">03</span>
+            <span>Columns</span>
+          </button>
+
+          <button class="nav-item" type="button" data-view="charts">
+            <span class="nav-item__icon">04</span>
+            <span>Charts</span>
+          </button>
+
+          <button class="nav-item" type="button" data-view="clean">
+            <span class="nav-item__icon">05</span>
+            <span>Clean</span>
+          </button>
+        </nav>
+      </div>
+
+      <div class="sidebar__dataset" id="sidebar-dataset" hidden>
+        <span class="sidebar__eyebrow">Dataset</span>
+        <strong id="sidebar-file-name">—</strong>
+        <small id="sidebar-file-meta">—</small>
+
+        <div class="health-mini">
+          <div>
+            <span>Data health</span>
+            <strong id="sidebar-health">—</strong>
+          </div>
+          <div class="health-mini__bar">
+            <i id="sidebar-health-bar"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar__footer">
+        <span>Data stays in your browser by default.</span>
+      </div>
+    </aside>
+
+    <main class="main" id="workspace">
+      <!-- EMPTY / UPLOAD STATE -->
+      <section class="start-view" id="start-view">
+        <div class="start-view__copy">
+          <p class="eyebrow">Interactive data workspace</p>
+          <h1>Turn raw data<br />into clarity.</h1>
+          <p class="start-view__lede">
+            Drop in a CSV and DataLens will profile your columns, surface missing values,
+            detect duplicates, build charts, and help you clean the dataset without
+            destroying the original file.
+          </p>
+
+          <div class="start-view__stats">
+            <span>CSV preview</span>
+            <span>Column profiling</span>
+            <span>Cleaning history</span>
+            <span>Export-ready</span>
+          </div>
+        </div>
+
+        <div class="drop-card" id="drop-card">
+          <input id="file-input" type="file" accept=".csv,text/csv" hidden />
+
+          <div class="drop-card__visual" aria-hidden="true">
+            <div class="drop-orbit drop-orbit--one"></div>
+            <div class="drop-orbit drop-orbit--two"></div>
+            <div class="drop-sheet">
+              <span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+
+          <div class="drop-card__copy">
+            <span class="drop-card__label">CSV IMPORT</span>
+            <h2 id="drop-title">Drop CSV here</h2>
+            <p id="drop-copy">or choose a file from your device</p>
+          </div>
+
+          <div class="drop-card__actions">
+            <button class="primary-button" id="choose-file-button" type="button">
+              Choose CSV
+            </button>
+            <button class="soft-button" id="sample-data-button" type="button">
+              Use sample data
+            </button>
+          </div>
+
+          <p class="drop-card__note">
+            Recommended under 20 MB. Processing happens locally in your browser.
+          </p>
+        </div>
+      </section>
+
+      <!-- ANALYSIS WORKSPACE -->
+      <section class="workspace" id="analysis-workspace" hidden>
+        <div class="workspace-head">
+          <div>
+            <p class="eyebrow" id="workspace-eyebrow">Dataset overview</p>
+            <h1 id="workspace-title">Analysis</h1>
+          </div>
+
+          <div class="workspace-head__actions">
+            <button class="soft-button" id="workspace-new-button" type="button">
+              Replace file
+            </button>
+            <button class="primary-button" id="workspace-export-button" type="button">
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- OVERVIEW -->
+        <section class="view is-active" data-view-panel="overview">
+          <div class="summary-grid">
+            <article class="summary-card summary-card--rows">
+              <span>Rows</span>
+              <strong id="summary-rows">0</strong>
+              <small>Current dataset</small>
+            </article>
+
+            <article class="summary-card summary-card--columns">
+              <span>Columns</span>
+              <strong id="summary-columns">0</strong>
+              <small>Detected fields</small>
+            </article>
+
+            <article class="summary-card summary-card--missing">
+              <span>Missing</span>
+              <strong id="summary-missing">0</strong>
+              <small>Empty cells</small>
+            </article>
+
+            <article class="summary-card summary-card--duplicates">
+              <span>Duplicates</span>
+              <strong id="summary-duplicates">0</strong>
+              <small>Repeated rows</small>
+            </article>
+          </div>
+
+          <div class="overview-grid">
+            <article class="panel health-panel">
+              <div class="panel-head">
+                <div>
+                  <span class="panel-kicker">Dataset health</span>
+                  <h2>Quality snapshot</h2>
+                </div>
+                <strong class="health-score" id="health-score">0</strong>
+              </div>
+
+              <div class="health-meter">
+                <span id="health-meter-fill"></span>
+              </div>
+
+              <div class="health-breakdown">
+                <div>
+                  <span>Completeness</span>
+                  <strong id="health-completeness">0%</strong>
+                </div>
+                <div>
+                  <span>Duplicates</span>
+                  <strong id="health-duplicates">0%</strong>
+                </div>
+                <div>
+                  <span>Type confidence</span>
+                  <strong id="health-types">0%</strong>
+                </div>
+              </div>
+
+              <p class="panel-note">
+                Data Health is a DataLens heuristic based on completeness, duplicate rate,
+                and consistent column typing.
+              </p>
+            </article>
+
+            <article class="panel quick-insights">
+              <div class="panel-head">
+                <div>
+                  <span class="panel-kicker">Quick insights</span>
+                  <h2>What stands out</h2>
+                </div>
+              </div>
+
+              <div class="insight-list" id="insight-list"></div>
+            </article>
+          </div>
+
+          <article class="panel preview-panel">
+            <div class="panel-head panel-head--responsive">
+              <div>
+                <span class="panel-kicker">Preview</span>
+                <h2>First rows</h2>
+              </div>
+              <button class="text-button" type="button" data-jump-view="data">
+                Open full table →
+              </button>
+            </div>
+
+            <div class="table-wrap">
+              <table id="preview-table"></table>
+            </div>
+          </article>
+        </section>
+
+        <!-- DATA -->
+        <section class="view" data-view-panel="data">
+          <article class="panel">
+            <div class="data-toolbar">
+              <div class="search-field">
+                <label for="table-search">Search rows</label>
+                <input id="table-search" type="search" placeholder="Search any value…" />
+              </div>
+
+              <div class="toolbar-stat">
+                <span>Showing</span>
+                <strong id="table-showing-count">0 rows</strong>
+              </div>
+            </div>
+
+            <div class="filter-builder">
+              <div>
+                <label for="filter-column">Column</label>
+                <select id="filter-column"></select>
+              </div>
+              <div>
+                <label for="filter-operator">Condition</label>
+                <select id="filter-operator">
+                  <option value="contains">contains</option>
+                  <option value="equals">equals</option>
+                  <option value="not-equals">does not equal</option>
+                  <option value="gt">greater than</option>
+                  <option value="lt">less than</option>
+                  <option value="missing">is missing</option>
+                  <option value="not-missing">is not missing</option>
+                </select>
+              </div>
+              <div>
+                <label for="filter-value">Value</label>
+                <input id="filter-value" type="text" placeholder="Value" />
+              </div>
+              <button class="primary-button primary-button--compact" id="apply-filter-button" type="button">
+                Apply filter
+              </button>
+              <button class="soft-button soft-button--compact" id="clear-filter-button" type="button">
+                Clear
+              </button>
+            </div>
+
+            <div class="active-filter" id="active-filter" hidden></div>
+
+            <div class="table-wrap table-wrap--large">
+              <table id="data-table"></table>
+            </div>
+
+            <div class="pagination">
+              <button class="soft-button soft-button--compact" id="prev-page-button" type="button">
+                Previous
+              </button>
+              <span id="page-indicator">Page 1 / 1</span>
+              <button class="soft-button soft-button--compact" id="next-page-button" type="button">
+                Next
+              </button>
+            </div>
+          </article>
+        </section>
+
+        <!-- COLUMNS -->
+        <section class="view" data-view-panel="columns">
+          <div class="columns-grid" id="columns-grid"></div>
+        </section>
+
+        <!-- CHARTS -->
+        <section class="view" data-view-panel="charts">
+          <div class="charts-layout">
+            <article class="panel chart-builder">
+              <div class="panel-head">
+                <div>
+                  <span class="panel-kicker">Chart builder</span>
+                  <h2>Create a view</h2>
+                </div>
+              </div>
+
+              <div class="chart-form">
+                <div>
+                  <label for="chart-type">Chart type</label>
+                  <select id="chart-type">
+                    <option value="bar">Bar</option>
+                    <option value="doughnut">Donut</option>
+                    <option value="line">Line</option>
+                    <option value="scatter">Scatter</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label for="chart-x-column">X / Category</label>
+                  <select id="chart-x-column"></select>
+                </div>
+
+                <div>
+                  <label for="chart-y-column">Y / Value</label>
+                  <select id="chart-y-column"></select>
+                </div>
+
+                <button class="primary-button" id="generate-chart-button" type="button">
+                  Generate chart
+                </button>
+              </div>
+
+              <div class="chart-suggestions">
+                <span>Suggestions</span>
+                <div id="chart-suggestions"></div>
+              </div>
+            </article>
+
+            <article class="panel chart-output">
+              <div class="panel-head panel-head--responsive">
+                <div>
+                  <span class="panel-kicker">Visualization</span>
+                  <h2 id="chart-title">Choose a chart</h2>
+                </div>
+                <span class="chart-record-count" id="chart-record-count"></span>
+              </div>
+
+              <div class="chart-canvas-wrap">
+                <canvas id="main-chart"></canvas>
+                <div class="chart-empty" id="chart-empty">
+                  <span>CHART</span>
+                  <p>Select fields and generate a visualization.</p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- CLEAN -->
+        <section class="view" data-view-panel="clean">
+          <div class="clean-grid">
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="panel-kicker">Missing values</span>
+                  <h2>Completeness</h2>
+                </div>
+              </div>
+              <div id="missing-list" class="issue-list"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="panel-kicker">Duplicates</span>
+                  <h2>Repeated rows</h2>
+                </div>
+              </div>
+
+              <div class="duplicate-summary">
+                <strong id="duplicate-count">0</strong>
+                <span>duplicate rows detected</span>
+              </div>
+
+              <button class="danger-soft-button" id="remove-duplicates-button" type="button">
+                Remove duplicates
+              </button>
+            </article>
+
+            <article class="panel clean-history-panel">
+              <div class="panel-head panel-head--responsive">
+                <div>
+                  <span class="panel-kicker">History</span>
+                  <h2>Changes</h2>
+                </div>
+                <button class="soft-button soft-button--compact" id="undo-button" type="button" disabled>
+                  Undo
+                </button>
+              </div>
+              <div class="history-list" id="history-list"></div>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="mobile-nav" aria-label="Mobile sections">
+      <button class="is-active" type="button" data-view="overview">
+        <span>01</span>
+        <small>Overview</small>
+      </button>
+      <button type="button" data-view="data">
+        <span>02</span>
+        <small>Data</small>
+      </button>
+      <button type="button" data-view="charts">
+        <span>03</span>
+        <small>Charts</small>
+      </button>
+      <button type="button" data-view="clean">
+        <span>04</span>
+        <small>Clean</small>
+      </button>
+      <button type="button" data-view="columns">
+        <span>05</span>
+        <small>Columns</small>
+      </button>
+    </nav>
+  </div>
+
+  <!-- COLUMN DRAWER -->
+  <div class="drawer" id="column-drawer" aria-hidden="true">
+    <button class="drawer__backdrop" type="button" data-close-drawer aria-label="Close column details"></button>
+
+    <aside class="drawer__panel">
+      <div class="drawer__head">
+        <div>
+          <span>Column profile</span>
+          <h2 id="drawer-column-name">Column</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-drawer aria-label="Close">×</button>
+      </div>
+
+      <div id="drawer-content"></div>
+    </aside>
+  </div>
+
+  <!-- CLEAN ACTION MODAL -->
+  <div class="modal" id="clean-modal" aria-hidden="true">
+    <button class="modal__backdrop" type="button" data-close-clean-modal aria-label="Close"></button>
+
+    <section class="modal__card">
+      <div class="modal__head">
+        <div>
+          <span>Clean column</span>
+          <h2 id="clean-modal-title">Missing values</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-clean-modal aria-label="Close">×</button>
+      </div>
+
+      <div class="modal__options">
+        <button type="button" data-clean-action="remove">
+          <strong>Remove affected rows</strong>
+          <span>Delete rows where this column is missing.</span>
+        </button>
+
+        <button type="button" data-clean-action="mean">
+          <strong>Replace with mean</strong>
+          <span>Available for numeric columns.</span>
+        </button>
+
+        <button type="button" data-clean-action="median">
+          <strong>Replace with median</strong>
+          <span>Available for numeric columns.</span>
+        </button>
+
+        <button type="button" data-clean-action="mode">
+          <strong>Replace with most common</strong>
+          <span>Useful for categorical columns.</span>
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
